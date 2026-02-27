@@ -2,7 +2,7 @@
 /**
  * Assignment 2: Simple UNIX Shell
  * @file pcbtable.h
- * @author ??? (TODO: your name)
+ * @author Devin Cullen
  * @brief This is the main function of a simple UNIX Shell. You may add additional functions in this file for your implementation
  * @version 0.1
  */
@@ -21,6 +21,9 @@ using namespace std;
 
 #define MAX_LINE 80 // The maximum length command
 
+bool bg_flag = false;
+char history[MAX_LINE];
+
 /**
  * @brief parse out the command and arguments from the input command separated by spaces
  *
@@ -30,10 +33,31 @@ using namespace std;
  */
 int parse_command(char command[], char *args[])
 {
-    // TODO: implement this function
-}
+    bg_flag = false;
+    history = command;
 
-// TODO: Add additional functions if you need
+    size_t length = strlen(command);
+
+    if (length > 0 && command[length - 1] == '\n') {
+        command[length - 1] = '\0';
+	}
+
+    const char* delimiter = " \t";
+	char* token = strtok(command, delimiter);
+    int argc = 0;
+
+    // iterate through tokens and add them to the args array
+    while (token != NULL && argc < MAX_LINE / 2) {
+		if strcmp(token, "&") == 0 { bg_flag = true; } // background flag
+        else {
+            args[argc++] = token;
+        }
+        token = strtok(NULL, delimiter); // next token
+    }
+
+    args[argc] = NULL; // Null-terminate the args array
+    return argc;
+}
 
 /**
  * @brief The main function of a simple UNIX Shell. You may add additional functions in this file for your implementation
@@ -46,25 +70,39 @@ int main(int argc, char *argv[])
     char command[MAX_LINE];       // the command that was entered
     char *args[MAX_LINE / 2 + 1]; // hold parsed out command line arguments
     int should_run = 1;           /* flag to determine when to exit program */
-
-    // TODO: Add additional variables for the implementation.
+    int status = 0;
 
     while (should_run)
     {
         printf("osh>");
         fflush(stdout);
         // Read the input command
-        fgets(command, MAX_LINE, stdin);
+        if (fgets(command, MAX_LINE, stdin) == NULL) {
+            break;
+        }
         // Parse the input command
         int num_args = parse_command(command, args);
 
-        // TODO: Add your code for the implementation
-        /**
-         * After reading user input, the steps are:
-         * (1) fork a child process using fork()
-         * (2) the child process will invoke execvp()
-         * (3) parent will invoke wait() unless command included &
-         */
+        if (strcmp(args[0], "exit") == 0) {
+            should_run = 0;
+            continue;
+        }
+
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork failed");
+        }
+        else if (pid == 0) { // child process
+            if (execvp(args[0], args) < 0) {
+                perror("command not found")
+            }
+        }
+        else { // parent process must wait, unless bg flagged
+            if (!bg_flag) {
+                waitpid(pid, &status, 0);
+            }
+        }
     }
     return 0;
 }
